@@ -1,0 +1,627 @@
+// importing the SFML graphics library
+#include <SFML/Graphics.hpp>
+#include <vector>
+#include <string>
+#include <iostream>
+
+// particle class to define the relevant properties and functions required for an ideal gas model particle
+struct Particle {
+    // the particleShape object contains each particles x and y position
+    sf::CircleShape particleShape;
+    // here I define float variables for the x and y components of each particles velocity
+    float dx;
+    float dy;
+    // when this function gets called, a particle is created between the system's left wall and the partition with (pseudo)randomized x and y velocity
+    // components
+    void generateParticleLeftChamber(sf::CircleShape particle, sf::Color color, int leftBoundary, int rightBoundary, int speed) {
+        this->particleShape = particle;
+        // with the color red passed in as 'color', this sets every randomly-generated particle to be red
+        this->particleShape.setFillColor(color);
+        // to randomize the molecular speeds, here for the x component I assign it a random value within 5 units of the user-specified molecular speed
+        int xVelocity = rand() % (speed + 5) + (speed - 5);
+        // since in reality absolute zero can never be achieved, I decided to ensure every particle has a non-zero speed
+        if (xVelocity <= 0)
+            xVelocity = 1;
+        // here I use the C++ rand function to define the variable rx a random number between 0 and 99
+        int rx = rand() % 100;
+        // many particles were following similar trajectories so to add randomness here I use rx to randomly change the sign of each particle's velocity
+        // x-component
+        if (rx > 50) {
+            this->dx = xVelocity;
+        }
+        else {
+            this->dx = -1 * xVelocity;
+        }
+        int ry = rand() % 100;
+        // likewise for the y-component, I assign it a random value within 5 units of the user-specified molecular speed
+        int yVelocity = rand() % (speed + 5) + (speed - 5);
+        if (yVelocity <= 0)
+            yVelocity = 1;
+        if (ry > 50) {
+            this->dy = yVelocity;
+        }
+        else {
+            this->dy = -1 * yVelocity;
+        }
+        // here the x and y positions of the particle are assigned random values
+        int x = rand() % (rightBoundary - 160) + (leftBoundary + 22);
+        int y = rand() % 640 + 120;
+        sf::Vector2f pos(x, y);
+        // again particleShape is an API object I use as a class member variable to store the position vector
+        this->particleShape.setPosition(pos);
+    }
+    // the function below has the same functionality as the one above and I could have just made one function, but I had some bugs with the boundary
+    // collisions in the right chamber so I hard-coded separate conditions in the random position assignments below and it works as a temporary solution
+    void generateParticleRightChamber(sf::CircleShape particle, sf::Color color, int leftBoundary, int rightBoundary, int speed) {
+        this->particleShape = particle;
+        this->particleShape.setFillColor(color);
+        int rx = rand() % 100;
+        int xVelocity = rand() % (speed + 5) + (speed - 5);
+        if (xVelocity <= 0)
+            xVelocity = 1;
+        if (rx > 50) {
+            this->dx = xVelocity;
+        }
+        else {
+            this->dx = -1 * xVelocity;
+        }
+        int ry = rand() % 100;
+        int yVelocity = rand() % (speed + 5) + (speed - 5);
+        if (yVelocity <= 0)
+            yVelocity = 1;
+        if (ry > 50) {
+            this->dy = yVelocity;
+        }
+        else {
+            this->dy = -1 * yVelocity;
+        }
+        int x = rand() % (rightBoundary - 840) + (leftBoundary + 22);
+        int y = rand() % 640 + 120;
+        sf::Vector2f pos(x, y);
+        this->particleShape.setPosition(pos);
+    }
+    // this function simply returns the position vector for the particle it is called on
+    sf::Vector2f getParticlePosition() {
+        return this->particleShape.getPosition();
+    }
+    // this function is used to update the position vector for the particle it is called on in every frame of the animation
+    void setParticlePosition(sf::Vector2f pos) {
+        this->particleShape.setPosition(pos);
+    }
+    // when this function is called on a particle its x position is updated by adding the quantity 'dx' to it in a given frame
+    void moveParticleXDirection(float dx) {
+        sf::Vector2f currentPos = this->getParticlePosition();
+        float newX = currentPos.x + dx;
+        sf::Vector2f newPos(newX, currentPos.y);
+        this->setParticlePosition(newPos);
+    }
+    // the same functionality is granted here but for the y-position
+    void moveParticleYDirection(float dy) {
+        sf::Vector2f currentPos = this->getParticlePosition();
+        float newY = currentPos.y + dy;
+        sf::Vector2f newPos(currentPos.x, newY);
+        this->setParticlePosition(newPos);
+    }
+    // this simple line of code defines what happens in a boundary collision; if a particle hits a vertical wall, its x-component of velocity changes sign
+    // and it moves in the opposite direction
+    void changeXDirection() {
+        this->dx *= -1;
+    }
+    // same thing happens here for the two horizontal walls
+    void changeYDirection() {
+        this->dy *= -1;
+    }
+    // to make the particles in a given chamber distinguishable, the user can press keys that call this function and change their colors to red or blue
+    // (see key bindings)
+    void changeColor(sf::Color color) {
+        this->particleShape.setFillColor(color);
+    }
+
+};
+
+int main()
+{
+    sf::RenderWindow window(sf::VideoMode(1600, 900), "Maxwell's Demon");
+    window.setFramerateLimit(100);
+
+    int N_gas_A;
+    std::cout << "how many particles in gas A?" << std::endl;
+    std::cin >> N_gas_A;
+
+    int N_gas_B;
+    std::cout << "how many particles in gas B?" << std::endl;
+    std::cin >> N_gas_B;
+
+    int average_molecular_speed;
+    std::cout << "average molecular speed (1-10)?" << std::endl;
+    std::cin >> average_molecular_speed;
+
+    std::cout << "instructions for use:" << std::endl << std::endl;
+    std::cout << "if the first partition has not been removed, the key bindings are:" << std::endl;
+    std::cout << "Z - change the color of all gas A particles to red" << std::endl;
+    std::cout << "X - change the color of all gas A particles to blue" << std::endl;
+    std::cout << "C - change the color of all gas B particles to red" << std::endl;
+    std::cout << "V - change the color of all gas B particles to blue" << std::endl;
+    std::cout << "R - remove the partition" << std::endl;
+    std::cout << "P - replace the partition" << std::endl << std::endl;
+    std::cout << "once the partition has been removed then replaced, the updated key bindings are:" << std::endl;
+    std::cout << "M - open gap in partition" << std::endl;
+    std::cout << "N - close gap in partition" << std::endl;
+    std::cout << "A - change the color of all gas A particles to red" << std::endl;
+    std::cout << "S - change the color of all gas A particles to blue" << std::endl;
+    std::cout << "D - change the color of all gas B particles to red" << std::endl;
+    std::cout << "F - change the color of all gas B particles to blue" << std::endl;
+
+    sf::Font arial;
+    arial.loadFromFile("C:\\Users\\Owner\\Desktop\\PHY3513\\maxwells_demon_simulation\\arial.ttf");
+    sf::Text text;
+    text.setFont(arial);
+    text.setPosition(1485, 860);
+    text.setFillColor(sf::Color::Green);
+    text.setCharacterSize(20);
+    text.setString("ideal gas");
+
+    sf::Text number;
+    number.setFont(arial);
+    number.setPosition(570, 860);
+    number.setFillColor(sf::Color::Green);
+    number.setCharacterSize(20);
+    int N = N_gas_A + N_gas_B;
+    std::string totalN = std::to_string(N);
+    std::string NgasA = std::to_string(N_gas_A);
+    number.setString("number of particles in gas A: " + NgasA);
+
+    sf::Text number2;
+    number2.setFont(arial);
+    number2.setPosition(890, 860);
+    number2.setFillColor(sf::Color::Green);
+    number2.setCharacterSize(20);
+    std::string NgasB = std::to_string(N_gas_B);
+    number2.setString("number of particles in gas B: " + NgasB);
+
+    sf::Text speed;
+    speed.setFont(arial);
+    speed.setPosition(1210, 860);
+    speed.setFillColor(sf::Color::Green);
+    speed.setCharacterSize(20);
+    std::string averageSpeed = std::to_string(average_molecular_speed);
+    speed.setString("average molecular speed: " + averageSpeed);
+
+    // here I construct the container
+    sf::RectangleShape top;
+    top.setSize(sf::Vector2f(1400, 10));
+    top.setPosition(100, 100);
+    top.setFillColor(sf::Color::White);
+    int upperBoundary_y = top.getPosition().y;
+
+    sf::RectangleShape bottom;
+    bottom.setSize(sf::Vector2f(1400, 10));
+    bottom.setPosition(100, 790);
+    bottom.setFillColor(sf::Color::White);
+    int lowerBoundary_y = bottom.getPosition().y;
+
+    sf::RectangleShape leftBoundary;
+    sf::Vector2f leftBoundaryPos(100, 100);
+    int leftBoundary_x = leftBoundaryPos.x;
+    leftBoundary.setSize(sf::Vector2f(10, 700));
+    leftBoundary.setPosition(leftBoundaryPos);
+    leftBoundary.setFillColor(sf::Color::White);
+
+    sf::RectangleShape rightBoundary;
+    rightBoundary.setSize(sf::Vector2f(10, 700));
+    rightBoundary.setPosition(1490, 100);
+    rightBoundary.setFillColor(sf::Color::White);
+    sf::Vector2f rightBoundaryPos = rightBoundary.getPosition();
+    int rightBoundary_x = rightBoundaryPos.x;
+    // this constructs the partition
+    sf::RectangleShape partition;
+    partition.setSize(sf::Vector2f(10, 700));
+    partition.setPosition(790, 100);
+    partition.setFillColor(sf::Color::White);
+    sf::Vector2f partitionPos = partition.getPosition();
+    int partition_x = partitionPos.x;
+
+    // upper and lower partition are used when the user presses 'M' to open a gap for particles to flow through
+    sf::RectangleShape upperPartition;
+    upperPartition.setSize(sf::Vector2f(10, 325));
+    upperPartition.setPosition(790, 100);
+    upperPartition.setFillColor(sf::Color::White);
+
+    sf::RectangleShape lowerPartition;
+    lowerPartition.setSize(sf::Vector2f(10, 325));
+    lowerPartition.setPosition(790, 475);
+    lowerPartition.setFillColor(sf::Color::White);
+
+    // here I generate the particles in gas A by creating an instance of the Particle class and calling my generateParticleLeftChamber() function
+    std::vector<Particle> gas_A;
+    for (int i = 0; i < N_gas_A; i++) {
+        sf::CircleShape shape(10.f);
+        Particle particle;
+        particle.generateParticleLeftChamber(shape, sf::Color::Red, leftBoundary_x, partition_x, average_molecular_speed);
+        gas_A.push_back(particle);
+    }
+
+    // here I do the same for gas B
+    std::vector<Particle> gas_B;
+    for (int i = 0; i < N_gas_B; i++) {
+        sf::CircleShape shape(10.f);
+        Particle particle;
+        particle.generateParticleRightChamber(shape, sf::Color::Blue, partition_x, rightBoundary_x, average_molecular_speed);
+        gas_B.push_back(particle);
+    }
+
+    int dr = 0;
+    // the booleans below are used to control which code segments run depending on whether or not the user has removed the partition, replaced it, or opened / closed the gap
+    bool firstPartitionExists = true;
+    bool secondPartitionExists = false;
+    int binary = 0;
+    bool gap = false;
+    // initially, I have every particle stored in two vectors for gas A and gas B, but after the user removes the partition and replaces it, some particles of gas A will be in the right
+    // chamber and some in the left (likewise for gas B). Since I want to be able to distinguish the particles by which chamber they are in whenever the partition is closed, I need to
+    // create new vectors to store the particles in so I can get an updated grouping of which particles are in which chamber. Hence the four vectors below are used for that purpose.
+    std::vector<Particle> left;
+    std::vector<Particle> right;
+    std::vector<Particle> temporaryLeft;
+    std::vector<Particle> temporaryRight;
+
+    while (window.isOpen())
+    {
+        sf::Event event;
+        while (window.pollEvent(event))
+        {
+            if (event.type == sf::Event::Closed)
+                window.close();
+            // if the user presses the escape button, the render window will close and the program will terminate
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
+                window.close();
+            // see key bindings in instructions for descriptions of the rest of the bindings
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
+                for (int i = 0; i < left.size(); i++) {
+                    left[i].changeColor(sf::Color::Red);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::F)) {
+                for (int i = 0; i < right.size(); i++) {
+                    right[i].changeColor(sf::Color::Blue);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
+                for (int i = 0; i < left.size(); i++) {
+                    left[i].changeColor(sf::Color::Blue);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
+                for (int i = 0; i < right.size(); i++) {
+                    right[i].changeColor(sf::Color::Red);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Z)) {
+                for (int i = 0; i < gas_A.size(); i++) {
+                    gas_A[i].changeColor(sf::Color::Red);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::V)) {
+                for (int i = 0; i < gas_B.size(); i++) {
+                    gas_B[i].changeColor(sf::Color::Blue);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::X)) {
+                for (int i = 0; i < gas_A.size(); i++) {
+                    gas_A[i].changeColor(sf::Color::Blue);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::C)) {
+                for (int i = 0; i < gas_B.size(); i++) {
+                    gas_B[i].changeColor(sf::Color::Red);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::R)) {
+                firstPartitionExists = false;
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::P)) {
+                secondPartitionExists = true;
+                gap = false;
+                for (int i = 0; i < gas_A.size(); i++) {
+                    // at the instant 'P' is pressed and the partition is put back, some particles may be located within where the partition goes, so if they are travelling in the positive
+                    // x direction they get shifted to the right 42 units, and if they are travelling in the negative x direction, they get shifted left 42 units.
+                    if (gas_A[i].getParticlePosition().x > (partition_x - 20) && gas_A[i].getParticlePosition().x < (partition_x + 20) && gas_A[i].dx > 0) {
+                        sf::Vector2f trappedParticlePosition = gas_A[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x + 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        gas_A[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (gas_A[i].getParticlePosition().x > (partition_x - 20) && gas_A[i].getParticlePosition().x < (partition_x + 20) && gas_A[i].dx < 0) {
+                        sf::Vector2f trappedParticlePosition = gas_A[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x - 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        gas_A[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (gas_A[i].getParticlePosition().x < partition_x)
+                        left.push_back(gas_A[i]);
+                }
+                for (int i = 0; i < gas_B.size(); i++) {
+                    if (gas_B[i].getParticlePosition().x > (partition_x - 20) && gas_B[i].getParticlePosition().x < (partition_x + 20) && gas_B[i].dx > 0) {
+                        sf::Vector2f trappedParticlePosition = gas_B[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x + 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        gas_B[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (gas_B[i].getParticlePosition().x > (partition_x - 20) && gas_B[i].getParticlePosition().x < (partition_x + 20) && gas_B[i].dx < 0) {
+                        sf::Vector2f trappedParticlePosition = gas_B[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x - 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        gas_B[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (gas_B[i].getParticlePosition().x < partition_x)
+                        left.push_back(gas_B[i]);
+                }
+                for (int i = 0; i < gas_A.size(); i++) {
+                    if (gas_A[i].getParticlePosition().x > partition_x)
+                        right.push_back(gas_A[i]);
+                }
+                for (int i = 0; i < gas_B.size(); i++) {
+                    if (gas_B[i].getParticlePosition().x > partition_x)
+                        right.push_back(gas_B[i]);
+                }
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::M)) {
+                gap = true;
+
+                for (int i = 0; i < left.size(); i++) {
+                    temporaryLeft.push_back(left[i]);
+                }
+                for (int i = 0; i < right.size(); i++) {
+                    temporaryRight.push_back(right[i]);
+                }
+                left.clear();
+                right.clear();
+
+                for (int i = 0; i < temporaryLeft.size(); i++) {
+                    if (temporaryLeft[i].getParticlePosition().x > (partition_x - 20) && temporaryLeft[i].getParticlePosition().x < (partition_x + 20) && temporaryLeft[i].dx > 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryLeft[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x + 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryLeft[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryLeft[i].getParticlePosition().x > (partition_x - 20) && temporaryLeft[i].getParticlePosition().x < (partition_x + 20) && temporaryLeft[i].dx < 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryLeft[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x - 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryLeft[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryLeft[i].getParticlePosition().x < partition_x)
+                        left.push_back(temporaryLeft[i]);
+                }
+                for (int i = 0; i < temporaryRight.size(); i++) {
+                    if (temporaryRight[i].getParticlePosition().x > (partition_x - 20) && temporaryRight[i].getParticlePosition().x < (partition_x + 20) && temporaryRight[i].dx > 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryRight[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x + 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryRight[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryRight[i].getParticlePosition().x > (partition_x - 20) && temporaryRight[i].getParticlePosition().x < (partition_x + 20) && temporaryRight[i].dx < 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryRight[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x - 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryRight[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryRight[i].getParticlePosition().x < partition_x)
+                        left.push_back(temporaryRight[i]);
+                }
+                for (int i = 0; i < temporaryLeft.size(); i++) {
+                    if (temporaryLeft[i].getParticlePosition().x > partition_x)
+                        right.push_back(temporaryLeft[i]);
+                }
+                for (int i = 0; i < temporaryRight.size(); i++) {
+                    if (temporaryRight[i].getParticlePosition().x > partition_x)
+                        right.push_back(temporaryRight[i]);
+                }
+                temporaryLeft.clear();
+                temporaryRight.clear();
+            }
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::N)) {
+                gap = false;
+
+                for (int i = 0; i < left.size(); i++) {
+                    temporaryLeft.push_back(left[i]);
+                }
+                for (int i = 0; i < right.size(); i++) {
+                    temporaryRight.push_back(right[i]);
+                }
+                left.clear();
+                right.clear();
+
+                for (int i = 0; i < temporaryLeft.size(); i++) {
+                    if (temporaryLeft[i].getParticlePosition().x > (partition_x - 20) && temporaryLeft[i].getParticlePosition().x < (partition_x + 20) && temporaryLeft[i].dx > 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryLeft[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x + 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryLeft[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryLeft[i].getParticlePosition().x > (partition_x - 20) && temporaryLeft[i].getParticlePosition().x < (partition_x + 20) && temporaryLeft[i].dx < 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryLeft[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x - 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryLeft[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryLeft[i].getParticlePosition().x < partition_x)
+                        left.push_back(temporaryLeft[i]);
+                }
+                for (int i = 0; i < temporaryRight.size(); i++) {
+                    if (temporaryRight[i].getParticlePosition().x > (partition_x - 20) && temporaryRight[i].getParticlePosition().x < (partition_x + 20) && temporaryRight[i].dx > 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryRight[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x + 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryRight[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryRight[i].getParticlePosition().x > (partition_x - 20) && temporaryRight[i].getParticlePosition().x < (partition_x + 20) && temporaryRight[i].dx < 0) {
+                        sf::Vector2f trappedParticlePosition = temporaryRight[i].getParticlePosition();
+                        float x_new = trappedParticlePosition.x - 42;
+                        sf::Vector2f correctedParticlePosition(x_new, trappedParticlePosition.y);
+                        temporaryRight[i].setParticlePosition(correctedParticlePosition);
+                    }
+                    if (temporaryRight[i].getParticlePosition().x < partition_x)
+                        left.push_back(temporaryRight[i]);
+                }
+                for (int i = 0; i < temporaryLeft.size(); i++) {
+                    if (temporaryLeft[i].getParticlePosition().x > partition_x)
+                        right.push_back(temporaryLeft[i]);
+                }
+                for (int i = 0; i < temporaryRight.size(); i++) {
+                    if (temporaryRight[i].getParticlePosition().x > partition_x)
+                        right.push_back(temporaryRight[i]);
+                }
+                temporaryLeft.clear();
+                temporaryRight.clear();
+            }
+
+        }
+
+        // physics
+        if (firstPartitionExists) {
+            for (int i = 0; i < gas_A.size(); i++) {
+                sf::Vector2f particlePosition = gas_A[i].getParticlePosition();
+                if (particlePosition.x < (leftBoundary_x + 10) || particlePosition.x >(partition_x - 20)) { gas_A[i].changeXDirection(); }
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { gas_A[i].changeYDirection(); }
+                gas_A[i].moveParticleXDirection(gas_A[i].dx);
+                gas_A[i].moveParticleYDirection(gas_A[i].dy);
+                gas_A[i].setParticlePosition(gas_A[i].getParticlePosition());
+            }
+            for (int i = 0; i < gas_B.size(); i++) {
+                sf::Vector2f particlePosition = gas_B[i].getParticlePosition();
+                if (particlePosition.x < (partition_x + 10) || particlePosition.x >(rightBoundary_x - 20)) { gas_B[i].changeXDirection(); }
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { gas_B[i].changeYDirection(); }
+                gas_B[i].moveParticleXDirection(gas_B[i].dx);
+                gas_B[i].moveParticleYDirection(gas_B[i].dy);
+                gas_B[i].setParticlePosition(gas_B[i].getParticlePosition());
+            }
+
+        }
+
+        if (!firstPartitionExists) {
+            for (int i = 0; i < gas_A.size(); i++) {
+                sf::Vector2f particlePosition = gas_A[i].getParticlePosition();
+                if (particlePosition.x < (leftBoundary_x + 10) || particlePosition.x >(rightBoundary_x - 20)) { gas_A[i].changeXDirection(); }
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { gas_A[i].changeYDirection(); }
+                gas_A[i].moveParticleXDirection(gas_A[i].dx);
+                gas_A[i].moveParticleYDirection(gas_A[i].dy);
+                gas_A[i].setParticlePosition(gas_A[i].getParticlePosition());
+            }
+            for (int i = 0; i < gas_B.size(); i++) {
+                sf::Vector2f particlePosition = gas_B[i].getParticlePosition();
+                if (particlePosition.x < (leftBoundary_x + 10) || particlePosition.x >(rightBoundary_x - 20)) { gas_B[i].changeXDirection(); }
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { gas_B[i].changeYDirection(); }
+                gas_B[i].moveParticleXDirection(gas_B[i].dx);
+                gas_B[i].moveParticleYDirection(gas_B[i].dy);
+                gas_B[i].setParticlePosition(gas_B[i].getParticlePosition());
+            }
+
+        }
+
+        if (secondPartitionExists && !gap) {
+            for (int i = 0; i < left.size(); i++) {
+                sf::Vector2f particlePosition = left[i].getParticlePosition();
+                if (particlePosition.x < (leftBoundary_x + 10) || particlePosition.x >(partition_x - 20)) { left[i].changeXDirection(); }
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { left[i].changeYDirection(); }
+                left[i].moveParticleXDirection(left[i].dx);
+                left[i].moveParticleYDirection(left[i].dy);
+                left[i].setParticlePosition(left[i].getParticlePosition());
+            }
+            for (int i = 0; i < right.size(); i++) {
+                sf::Vector2f particlePosition = right[i].getParticlePosition();
+                if (particlePosition.x < (partition_x + 10) || particlePosition.x >(rightBoundary_x - 20)) { right[i].changeXDirection(); }
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { right[i].changeYDirection(); }
+                right[i].moveParticleXDirection(right[i].dx);
+                right[i].moveParticleYDirection(right[i].dy);
+                right[i].setParticlePosition(right[i].getParticlePosition());
+            }
+        }
+
+        if (secondPartitionExists && gap) {
+            for (int i = 0; i < left.size(); i++) {
+                sf::Vector2f particlePosition = left[i].getParticlePosition();
+                if (particlePosition.x < (leftBoundary_x + 10) || particlePosition.x >(rightBoundary_x - 20)) { left[i].changeXDirection(); }
+                if ((particlePosition.x > (partition_x - 20) && particlePosition.x < (partition_x + 10)) && (particlePosition.y < 425 || particlePosition.y > 475))
+                    left[i].changeXDirection();
+                if ((particlePosition.x > (partition_x - 20) && particlePosition.x < (partition_x + 10)) && (particlePosition.y > 405 && particlePosition.y < 430))
+                    left[i].changeYDirection();
+                if ((particlePosition.x > (partition_x - 20) && particlePosition.x < (partition_x + 10)) && (particlePosition.y > 460 && particlePosition.y < 495))
+                    left[i].changeYDirection();
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { left[i].changeYDirection(); }
+                left[i].moveParticleXDirection(left[i].dx);
+                left[i].moveParticleYDirection(left[i].dy);
+                left[i].setParticlePosition(left[i].getParticlePosition());
+            }
+            for (int i = 0; i < right.size(); i++) {
+                sf::Vector2f particlePosition = right[i].getParticlePosition();
+                if (particlePosition.x < (leftBoundary_x + 10) || particlePosition.x >(rightBoundary_x - 20)) { right[i].changeXDirection(); }
+                if ((particlePosition.x > (partition_x - 20) && particlePosition.x < (partition_x + 10)) && (particlePosition.y < 425 || particlePosition.y > 475))
+                    right[i].changeXDirection();
+                if ((particlePosition.x > (partition_x - 20) && particlePosition.x < (partition_x + 10)) && (particlePosition.y > 405 && particlePosition.y < 430))
+                    right[i].changeYDirection();
+                if ((particlePosition.x > (partition_x - 20) && particlePosition.x < (partition_x + 10)) && (particlePosition.y > 460 && particlePosition.y < 495))
+                    right[i].changeYDirection();
+                if (particlePosition.y < 110 || particlePosition.y >(lowerBoundary_y - 20)) { right[i].changeYDirection(); }
+                right[i].moveParticleXDirection(right[i].dx);
+                right[i].moveParticleYDirection(right[i].dy);
+                right[i].setParticlePosition(right[i].getParticlePosition());
+            }
+        }
+
+        window.clear();
+
+        // gas particles
+        if (!secondPartitionExists) {
+            for (int i = 0; i < gas_A.size(); i++) {
+                window.draw(gas_A[i].particleShape);
+            }
+
+            for (int i = 0; i < gas_B.size(); i++) {
+                window.draw(gas_B[i].particleShape);
+            }
+        }
+
+        if (secondPartitionExists) {
+            for (int i = 0; i < left.size(); i++) {
+                window.draw(left[i].particleShape);
+            }
+            for (int i = 0; i < right.size(); i++) {
+                window.draw(right[i].particleShape);
+            }
+        }
+
+        // container
+        window.draw(top);
+        window.draw(bottom);
+        window.draw(leftBoundary);
+        window.draw(rightBoundary);
+        if (firstPartitionExists)
+            window.draw(partition);
+        if (secondPartitionExists && gap == false)
+            window.draw(partition);
+        if (secondPartitionExists && gap == true) {
+            window.draw(upperPartition);
+            window.draw(lowerPartition);
+        }
+
+        // UI text elements
+        window.draw(text);
+        window.draw(number);
+        window.draw(number2);
+        window.draw(speed);
+        window.display();
+    }
+
+    return 0;
+}
